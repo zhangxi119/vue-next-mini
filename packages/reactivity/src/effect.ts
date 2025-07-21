@@ -1,4 +1,7 @@
+import { ComputedRefImpl } from './computed'
 import { createDep, Dep } from './dep'
+
+export type EffectScheduler = (...args: any[]) => any
 
 /**
  * 目标对象与依赖的映射
@@ -8,6 +11,7 @@ import { createDep, Dep } from './dep'
  * - value: 目标对象的依赖fn
  */
 type keyToDepMap = Map<any, Dep>
+
 const targetMap = new WeakMap<object, keyToDepMap>()
 
 /**
@@ -26,8 +30,11 @@ export let activeEffect: ReactiveEffect | undefined = undefined
  * 响应式副作用函数类
  */
 export class ReactiveEffect<T = any> {
-  constructor(public fn: () => T) {
+  computed?: ComputedRefImpl<T>
+
+  constructor(public fn: () => T, public scheduler?: EffectScheduler | null) {
     this.fn = fn
+    this.scheduler = scheduler
   }
   run() {
     activeEffect = this
@@ -91,9 +98,17 @@ export function trigger(target: object, key: string | symbol, value: unknown) {
  */
 export function triggerEffects(dep: Dep) {
   const effects = Array.isArray(dep) ? dep : [...dep]
-  // 遍历effect依次触发
+  // 遍历effect依次触发，先执行computed的effect
   effects.forEach(effect => {
-    triggerEffect(effect)
+    if (effect.computed) {
+      triggerEffect(effect)
+    }
+  })
+  // 遍历effect依次触发，再执行普通effect
+  effects.forEach(effect => {
+    if (!effect.computed) {
+      triggerEffect(effect)
+    }
   })
 }
 
@@ -102,5 +117,9 @@ export function triggerEffects(dep: Dep) {
  * @param effect 副作用函数
  */
 export function triggerEffect(effect: ReactiveEffect) {
-  effect.run()
+  if (effect.scheduler) {
+    effect.scheduler()
+  } else {
+    effect.run()
+  }
 }

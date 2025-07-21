@@ -63,9 +63,11 @@ var Vue = (function (exports) {
      * 响应式副作用函数类
      */
     var ReactiveEffect = /** @class */ (function () {
-        function ReactiveEffect(fn) {
+        function ReactiveEffect(fn, scheduler) {
             this.fn = fn;
+            this.scheduler = scheduler;
             this.fn = fn;
+            this.scheduler = scheduler;
         }
         ReactiveEffect.prototype.run = function () {
             activeEffect = this;
@@ -126,9 +128,17 @@ var Vue = (function (exports) {
      */
     function triggerEffects(dep) {
         var effects = Array.isArray(dep) ? dep : __spreadArray([], __read(dep), false);
-        // 遍历effect依次触发
+        // 遍历effect依次触发，先执行computed的effect
         effects.forEach(function (effect) {
-            triggerEffect(effect);
+            if (effect.computed) {
+                triggerEffect(effect);
+            }
+        });
+        // 遍历effect依次触发，再执行普通effect
+        effects.forEach(function (effect) {
+            if (!effect.computed) {
+                triggerEffect(effect);
+            }
         });
     }
     /**
@@ -136,7 +146,12 @@ var Vue = (function (exports) {
      * @param effect 副作用函数
      */
     function triggerEffect(effect) {
-        effect.run();
+        if (effect.scheduler) {
+            effect.scheduler();
+        }
+        else {
+            effect.run();
+        }
     }
 
     var get = createGetter();
@@ -175,6 +190,10 @@ var Vue = (function (exports) {
      * 判断值是否改变
      */
     var hasChanged = function (value, oldValue) { return !Object.is(value, oldValue); };
+    /**
+     * 判断是否为函数
+     */
+    var isFunction = function (val) { return typeof val === 'function'; };
 
     var reactiveMap = new WeakMap();
     function reactive(target) {
@@ -256,6 +275,56 @@ var Vue = (function (exports) {
         }
     }
 
+    var ComputedRefImpl = /** @class */ (function () {
+        function ComputedRefImpl(getter) {
+            var _this = this;
+            this.dep = undefined;
+            this.__v_isRef = true;
+            // 是否是脏的，创建实例时即为true
+            this._dirty = true;
+            // 传入getter和调度器
+            this.effect = new ReactiveEffect(getter, function () {
+                // 使用dirty标识状态避免死循环
+                if (!_this._dirty) {
+                    _this._dirty = true;
+                    triggerRefValue(_this);
+                }
+            });
+            // 将computed实例赋值给effect的computed属性
+            this.effect.computed = this;
+        }
+        Object.defineProperty(ComputedRefImpl.prototype, "value", {
+            get: function () {
+                // 收集依赖
+                trackRefValue(this);
+                // 如果计算属性是脏的，则执行effect的run方法，初始化计算属性的值并触发响应式数据的依赖收集
+                if (this._dirty) {
+                    this._dirty = false;
+                    // 执行effect的run方法，初始化计算属性的值并触发响应式数据的依赖收集
+                    this._value = this.effect.run();
+                }
+                // 返回计算属性的值
+                return this._value;
+            },
+            set: function (newValue) { },
+            enumerable: false,
+            configurable: true
+        });
+        return ComputedRefImpl;
+    }());
+    function computed(getterOrOptions) {
+        var getter;
+        var onlyGetter = isFunction(getterOrOptions);
+        if (onlyGetter) {
+            getter = getterOrOptions;
+        }
+        else {
+            getter = getterOrOptions.get;
+        }
+        return new ComputedRefImpl(getter);
+    }
+
+    exports.computed = computed;
     exports.effect = effect;
     exports.reactive = reactive;
     exports.ref = ref;
