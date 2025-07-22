@@ -43,6 +43,30 @@ var Vue = (function (exports) {
         return to.concat(ar || Array.prototype.slice.call(from));
     }
 
+    /**
+     * 判断是否为一个数组
+     */
+    /**
+     * 判断是否为对象
+     */
+    var isObject = function (val) { return val !== null && typeof val === 'object'; };
+    /**
+     * 判断值是否改变
+     */
+    var hasChanged = function (value, oldValue) { return !Object.is(value, oldValue); };
+    /**
+     * 判断是否为函数
+     */
+    var isFunction = function (val) { return typeof val === 'function'; };
+    /**
+     * 合并对象
+     */
+    var extend = Object.assign;
+    /**
+     * 空对象
+     */
+    var EMPTY_OBJ = Object.freeze({});
+
     var createDep = function (effects) {
         var dep = new Set(effects);
         return dep;
@@ -53,9 +77,15 @@ var Vue = (function (exports) {
      * 创建响应式副作用
      * @param fn 副作用函数
      */
-    function effect(fn) {
+    function effect(fn, options) {
         var _effect = new ReactiveEffect(fn);
-        _effect.run();
+        if (options) {
+            extend(_effect, options);
+        }
+        if (!options || !options.lazy) {
+            _effect.run();
+        }
+        return _effect;
     }
     // 当前激活的副作用函数
     var activeEffect = undefined;
@@ -73,6 +103,7 @@ var Vue = (function (exports) {
             activeEffect = this;
             return this.fn();
         };
+        ReactiveEffect.prototype.stop = function () { };
         return ReactiveEffect;
     }());
     /**
@@ -95,7 +126,6 @@ var Vue = (function (exports) {
             depsMap.set(key, (dep = createDep()));
         }
         trackEffects(dep);
-        console.log('收集依赖结束', targetMap);
     }
     /**
      * 利用dep依次跟踪指定key的所有effect
@@ -110,7 +140,6 @@ var Vue = (function (exports) {
      * @param value 目标对象的属性值
      */
     function trigger(target, key, value) {
-        console.log('触发依赖', target, key, value);
         var depsMap = targetMap.get(target);
         if (!depsMap)
             return;
@@ -159,7 +188,6 @@ var Vue = (function (exports) {
     function createGetter() {
         return function get(target, key, receiver) {
             var res = Reflect.get(target, key, receiver);
-            console.log('获取数据', key);
             // 收集依赖
             track(target, key);
             return res;
@@ -168,9 +196,8 @@ var Vue = (function (exports) {
     function createSetter() {
         return function set(target, key, value, receiver) {
             var result = Reflect.set(target, key, value, receiver);
-            console.log('设置数据', key);
             // 触发依赖
-            trigger(target, key, value);
+            trigger(target, key);
             return result;
         };
     }
@@ -178,22 +205,6 @@ var Vue = (function (exports) {
         get: get,
         set: set
     };
-
-    /**
-     * 判断是否为一个数组
-     */
-    /**
-     * 判断是否为对象
-     */
-    var isObject = function (val) { return val !== null && typeof val === 'object'; };
-    /**
-     * 判断值是否改变
-     */
-    var hasChanged = function (value, oldValue) { return !Object.is(value, oldValue); };
-    /**
-     * 判断是否为函数
-     */
-    var isFunction = function (val) { return typeof val === 'function'; };
 
     var reactiveMap = new WeakMap();
     function reactive(target) {
@@ -205,6 +216,7 @@ var Vue = (function (exports) {
             return existingProxy;
         }
         var proxy = new Proxy(target, baseHandlers);
+        proxy["__v_isReactive" /* ReactiveFlags.IS_REACTIVE */] = true;
         proxyMap.set(target, proxy);
         return proxy;
     }
@@ -212,6 +224,8 @@ var Vue = (function (exports) {
     var toReactive = function (value) {
         return isObject(value) ? reactive(value) : value;
     };
+    // 判断是否为响应式对象
+    var isReactive = function (value) { return !!(value && value["__v_isReactive" /* ReactiveFlags.IS_REACTIVE */]); };
 
     function isRef(r) {
         return !!(r && r.__v_isRef === true);
@@ -324,10 +338,108 @@ var Vue = (function (exports) {
         return new ComputedRefImpl(getter);
     }
 
+    var isFlushPending = false;
+    // 缓存任务队列
+    var pendingPreFlushCbs = [];
+    // 创建一个微任务
+    var resolvePromise = Promise.resolve();
+    /**
+     * 将回调函数添加到任务队列中
+     * @param cb 回调函数
+     */
+    function queuePreFlushCb(cb) {
+        queueCb(cb, pendingPreFlushCbs);
+    }
+    function queueCb(cb, pendingQueue) {
+        pendingQueue.push(cb);
+        queueFlush();
+    }
+    function queueFlush() {
+        if (!isFlushPending) {
+            isFlushPending = true;
+            resolvePromise.then(flushJobs);
+        }
+    }
+    function flushJobs() {
+        isFlushPending = false;
+        flushPreFlushCbs();
+    }
+    function flushPreFlushCbs() {
+        if (pendingPreFlushCbs.length) {
+            // 深拷贝并去重任务队列
+            var activePreFlushCbs = __spreadArray([], __read(new Set(pendingPreFlushCbs)), false);
+            // 清空任务队列
+            pendingPreFlushCbs.length = 0;
+            for (var i = 0; i < activePreFlushCbs.length; i++) {
+                activePreFlushCbs[i]();
+            }
+        }
+    }
+
+    function watch(source, cb, options) {
+        return doWatch(source, cb, options);
+    }
+    function doWatch(source, cb, _a) {
+        var _b = _a === void 0 ? EMPTY_OBJ : _a, immediate = _b.immediate, deep = _b.deep;
+        var getter;
+        if (isReactive(source)) {
+            getter = function () { return source; };
+            deep = true;
+        }
+        else {
+            getter = function () { };
+        }
+        // 如果需要深度监听，则需要创建一个代理对象，并进行依赖收集
+        if (cb && deep) {
+            var baseGetter_1 = getter;
+            getter = function () { return traverse(baseGetter_1()); };
+        }
+        var oldValue = {};
+        // job函数执行相当于watch执行
+        var job = function () {
+            if (cb) {
+                var newValue = effect.run();
+                if (deep || hasChanged(newValue, oldValue)) {
+                    cb(newValue, oldValue);
+                    oldValue = newValue;
+                }
+            }
+        };
+        // 创建调度器
+        var scheduler = function () { return queuePreFlushCb(job); };
+        var effect = new ReactiveEffect(getter, scheduler);
+        if (cb) {
+            // 立即执行直接调用job
+            if (immediate) {
+                job();
+            }
+            else {
+                oldValue = effect.run();
+            }
+        }
+        else {
+            effect.run();
+        }
+        return function () {
+            effect.stop();
+        };
+    }
+    // 依赖收集,递归调用访问一次所有的变量进行依赖收集
+    function traverse(value) {
+        if (!isObject(value))
+            return value;
+        for (var key in value) {
+            traverse(value[key]);
+        }
+        return value;
+    }
+
     exports.computed = computed;
     exports.effect = effect;
+    exports.queuePreFlushCb = queuePreFlushCb;
     exports.reactive = reactive;
     exports.ref = ref;
+    exports.watch = watch;
 
     Object.defineProperty(exports, '__esModule', { value: true });
 

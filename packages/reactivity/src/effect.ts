@@ -1,7 +1,13 @@
+import { extend } from '@vue/shared'
 import { ComputedRefImpl } from './computed'
 import { createDep, Dep } from './dep'
 
 export type EffectScheduler = (...args: any[]) => any
+
+export interface ReactiveEffectOptions {
+  lazy?: boolean
+  scheduler?: EffectScheduler
+}
 
 /**
  * 目标对象与依赖的映射
@@ -18,9 +24,16 @@ const targetMap = new WeakMap<object, keyToDepMap>()
  * 创建响应式副作用
  * @param fn 副作用函数
  */
-export function effect<T = any>(fn: () => T) {
+export function effect<T = any>(fn: () => T, options?: ReactiveEffectOptions) {
   const _effect = new ReactiveEffect(fn)
-  _effect.run()
+
+  if (options) {
+    extend(_effect, options)
+  }
+  if (!options || !options.lazy) {
+    _effect.run()
+  }
+  return _effect
 }
 
 // 当前激活的副作用函数
@@ -40,6 +53,7 @@ export class ReactiveEffect<T = any> {
     activeEffect = this
     return this.fn()
   }
+  stop() {}
 }
 
 /**
@@ -61,7 +75,6 @@ export function track(target: object, key: string | symbol) {
     depsMap.set(key, (dep = createDep()))
   }
   trackEffects(dep)
-  console.log('收集依赖结束', targetMap)
 }
 
 /**
@@ -78,8 +91,6 @@ export function trackEffects(dep: Dep) {
  * @param value 目标对象的属性值
  */
 export function trigger(target: object, key: string | symbol, value: unknown) {
-  console.log('触发依赖', target, key, value)
-
   const depsMap = targetMap.get(target)
 
   if (!depsMap) return

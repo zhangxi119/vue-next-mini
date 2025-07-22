@@ -3,6 +3,11 @@ import { isObject } from '@vue/shared'
 
 const reactiveMap = new WeakMap<object, any>()
 
+export const enum ReactiveFlags {
+  IS_REACTIVE = '__v_isReactive',
+  IS_READONLY = '__v_isReadonly'
+}
+
 export function reactive(target: object) {
   return createReactiveObject(target, mutableHandlers, reactiveMap)
 }
@@ -13,6 +18,7 @@ function createReactiveObject(target: object, baseHandlers: ProxyHandler<any>, p
     return existingProxy
   }
   const proxy = new Proxy(target, baseHandlers)
+  proxy[ReactiveFlags.IS_REACTIVE] = true
   proxyMap.set(target, proxy)
   return proxy
 }
@@ -21,3 +27,6 @@ function createReactiveObject(target: object, baseHandlers: ProxyHandler<any>, p
 export const toReactive = <T extends unknown>(value: T): T => {
   return isObject(value) ? reactive(value as object) : value
 }
+
+// 判断是否为响应式对象
+export const isReactive = (value: unknown): boolean => !!(value && value[ReactiveFlags.IS_REACTIVE])

@@ -17,3 +17,18 @@ export const hasChanged = (value: unknown, oldValue: unknown): boolean => !Objec
  * 判断是否为函数
  */
 export const isFunction = (val: unknown): val is Function => typeof val === 'function'
+
+/**
+ * 合并对象
+ */
+export const extend = Object.assign
+
+/**
+ * 空对象
+ */
+export const EMPTY_OBJ: { readonly [key: string]: any } = Object.freeze({})
+
+/**
+ * 空数组
+ */
+export const EMPTY_ARR: any[] = []
