@@ -1,3 +1,5 @@
+export * from './shapeFlags'
+
 /**
  * 判断是否为一个数组
  */
@@ -32,3 +34,8 @@ export const EMPTY_OBJ: { readonly [key: string]: any } = Object.freeze({})
  * 空数组
  */
 export const EMPTY_ARR: any[] = []
+
+/**
+ * 是否是字符串
+ */
+export const isString = (val: unknown): val is string => typeof val === 'string'

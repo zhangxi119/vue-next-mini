@@ -50,6 +50,7 @@ export class ReactiveEffect<T = any> {
     this.scheduler = scheduler
   }
   run() {
+    // 设置当前激活的副作用函数,既调用effect实例的run函数时会设置当前激活的副作用函数，保证收集依赖时收集的是当前的副作用函数
     activeEffect = this
     return this.fn()
   }

@@ -19,8 +19,8 @@
     watch(
       obj,
       (newVal, oldVal) => {
-        console.log('watch')
-        console.log(newVal, oldVal)
+        console.log('oldVal', oldVal?.count)
+        console.log('newVal', newVal?.count)
       },
       {
         immediate: true

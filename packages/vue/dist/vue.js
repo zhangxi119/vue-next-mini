@@ -43,9 +43,25 @@ var Vue = (function (exports) {
         return to.concat(ar || Array.prototype.slice.call(from));
     }
 
+    var ShapeFlags;
+    (function (ShapeFlags) {
+        ShapeFlags[ShapeFlags["ELEMENT"] = 1] = "ELEMENT";
+        ShapeFlags[ShapeFlags["FUNCTIONAL_COMPONENT"] = 2] = "FUNCTIONAL_COMPONENT";
+        ShapeFlags[ShapeFlags["STATEFUL_COMPONENT"] = 4] = "STATEFUL_COMPONENT";
+        ShapeFlags[ShapeFlags["TEXT_CHILDREN"] = 8] = "TEXT_CHILDREN";
+        ShapeFlags[ShapeFlags["ARRAY_CHILDREN"] = 16] = "ARRAY_CHILDREN";
+        ShapeFlags[ShapeFlags["SLOTS_CHILDREN"] = 32] = "SLOTS_CHILDREN";
+        ShapeFlags[ShapeFlags["TELEPORT"] = 64] = "TELEPORT";
+        ShapeFlags[ShapeFlags["SUSPENSE"] = 128] = "SUSPENSE";
+        ShapeFlags[ShapeFlags["COMPONENT_SHOULD_KEEP_ALIVE"] = 256] = "COMPONENT_SHOULD_KEEP_ALIVE";
+        ShapeFlags[ShapeFlags["COMPONENT_KEPT_ALIVE"] = 512] = "COMPONENT_KEPT_ALIVE";
+        ShapeFlags[ShapeFlags["COMPONENT"] = 6] = "COMPONENT";
+    })(ShapeFlags || (ShapeFlags = {}));
+
     /**
      * 判断是否为一个数组
      */
+    var isArray = Array.isArray;
     /**
      * 判断是否为对象
      */
@@ -66,6 +82,10 @@ var Vue = (function (exports) {
      * 空对象
      */
     var EMPTY_OBJ = Object.freeze({});
+    /**
+     * 是否是字符串
+     */
+    var isString = function (val) { return typeof val === 'string'; };
 
     var createDep = function (effects) {
         var dep = new Set(effects);
@@ -100,6 +120,7 @@ var Vue = (function (exports) {
             this.scheduler = scheduler;
         }
         ReactiveEffect.prototype.run = function () {
+            // 设置当前激活的副作用函数,既调用effect实例的run函数时会设置当前激活的副作用函数，保证收集依赖时收集的是当前的副作用函数
             activeEffect = this;
             return this.fn();
         };
@@ -434,8 +455,72 @@ var Vue = (function (exports) {
         return value;
     }
 
+    function isVNode(value) {
+        return value != null && value.__v_isVNode === true;
+    }
+    function createVNode(type, props, children) {
+        var shapeFlag = isString(type) ? ShapeFlags.ELEMENT : 0;
+        return createBaseVNode(type, props, children, shapeFlag);
+    }
+    function createBaseVNode(type, props, children, shapeFlag) {
+        var vnode = {
+            __v_isVNode: true,
+            type: type,
+            props: props,
+            children: children,
+            shapeFlag: shapeFlag
+        };
+        normalizeChildren(vnode, children);
+        return vnode;
+    }
+    function normalizeChildren(vnode, children) {
+        var type = 0;
+        if (children == null) {
+            children = null;
+        }
+        else if (isArray(children)) ;
+        else if (typeof children === 'object') ;
+        else if (isFunction(children)) ;
+        else {
+            children = String(children);
+            type = ShapeFlags.TEXT_CHILDREN;
+        }
+        vnode.children = children;
+        vnode.shapeFlag |= type;
+    }
+
+    function h(type, propsOrChildren, children) {
+        var l = arguments.length;
+        if (l === 2) {
+            if (isObject(propsOrChildren) && !isArray(propsOrChildren)) {
+                // 如果 propsOrChildren 是 VNode 类型
+                if (isVNode(propsOrChildren)) {
+                    return createVNode(type, null, propsOrChildren);
+                }
+                // propsOrChildren 是对象类型
+                return createVNode(type, propsOrChildren, null);
+            }
+            else {
+                // 如果 propsOrChildren 是数组类型
+                return createVNode(type, null, propsOrChildren);
+            }
+        }
+        else {
+            if (l > 3) {
+                // 如果 l > 3，则将 arguments 的第 3 个及以后的参数作为 children
+                children = Array.prototype.slice.call(arguments, 2);
+            }
+            else if (l === 3 && isVNode(children)) {
+                // 如果 l === 3 且 children 是 VNode 类型，则将 children 转换为数组
+                children = [children];
+            }
+            return createVNode(type, propsOrChildren, children);
+        }
+    }
+
     exports.computed = computed;
     exports.effect = effect;
+    exports.h = h;
     exports.queuePreFlushCb = queuePreFlushCb;
     exports.reactive = reactive;
     exports.ref = ref;
