@@ -115,6 +115,10 @@ var Vue = (function (exports) {
      * 是否是字符串
      */
     var isString = function (val) { return typeof val === 'string'; };
+    /**
+     * 是否是绑定事件
+     */
+    var isOn = function (key) { return /^on[^a-z]/.test(key); };
 
     var createDep = function (effects) {
         var dep = new Set(effects);
@@ -533,6 +537,9 @@ var Vue = (function (exports) {
         // 将dom的类型和children的类型进行或运算，形成最终的类型，也就是说shapeFlag是dom的类型和children的类型的并集
         vnode.shapeFlag |= type;
     }
+    function isSameVNodeType(n1, n2) {
+        return n1.type === n2.type && n1.key === n2.key;
+    }
 
     function h(type, propsOrChildren, children) {
         var l = arguments.length;
@@ -563,6 +570,240 @@ var Vue = (function (exports) {
         }
     }
 
+    function createRenderer(options) {
+        return baseCreateRenderer(options);
+    }
+    function baseCreateRenderer(options) {
+        var hostInsert = options.insert, hostPatchProp = options.patchProp, hostCreateElement = options.createElement, hostSetElementText = options.setElementText, hostRemove = options.remove;
+        // 挂载实操函数
+        var mountElement = function (vnode, container, anchor) {
+            if (anchor === void 0) { anchor = null; }
+            var type = vnode.type, props = vnode.props, shapeFlag = vnode.shapeFlag; vnode.children;
+            // 1.创建element
+            var el = (vnode.el = hostCreateElement(type));
+            // 2.设置文本
+            if (shapeFlag & ShapeFlags.TEXT_CHILDREN) {
+                hostSetElementText(el, vnode.children);
+            }
+            else if (shapeFlag & ShapeFlags.ARRAY_CHILDREN) ;
+            // 3.设置props
+            if (props) {
+                for (var key in props) {
+                    hostPatchProp(el, key, null, props[key]);
+                }
+            }
+            // 4.插入
+            hostInsert(el, container, anchor);
+        };
+        // 更新实操函数
+        var patchElement = function (oldVNode, newVNode) {
+            var el = (newVNode.el = oldVNode.el);
+            // 为空时需要置为空对象，不然后续patchProps时会对空状态异常处理
+            var oldProps = oldVNode.props || EMPTY_OBJ;
+            var newProps = newVNode.props || EMPTY_OBJ;
+            // 更新children
+            patchChildren(oldVNode, newVNode, el);
+            // 更新props
+            patchProps(el, newVNode, oldProps, newProps);
+        };
+        // 子节点打补丁
+        var patchChildren = function (oldVNode, newVNode, container, anchor) {
+            var c1 = oldVNode && oldVNode.children;
+            var c2 = newVNode && newVNode.children;
+            var prevShapeFlag = (oldVNode && oldVNode.shapeFlag) || 0;
+            var shapeFlag = (newVNode && newVNode.shapeFlag) || 0;
+            // 新节点是文本TEXT_CHILDREN
+            if (shapeFlag & ShapeFlags.TEXT_CHILDREN) {
+                // 旧节点是数组ARRAY_CHILDREN，直接卸载
+                if (prevShapeFlag & ShapeFlags.ARRAY_CHILDREN) ;
+                // 新旧子节点文本不一致，更新文本
+                if (c2 !== c1) {
+                    // 挂载新子节点的文本
+                    hostSetElementText(container, c2);
+                }
+            }
+            else {
+                // 旧节点是文本ARRAY_CHILDREN
+                if (prevShapeFlag & ShapeFlags.ARRAY_CHILDREN) {
+                    // 新节点是数组ARRAY_CHILDREN
+                    if (shapeFlag & ShapeFlags.ARRAY_CHILDREN) ;
+                }
+                else {
+                    // 旧节点不是数组ARRAY_CHILDREN
+                    if (prevShapeFlag & ShapeFlags.TEXT_CHILDREN) {
+                        // 删除旧节点的文本
+                        hostSetElementText(container, '');
+                    }
+                    if (shapeFlag & ShapeFlags.ARRAY_CHILDREN) ;
+                }
+            }
+        };
+        // 更新props
+        var patchProps = function (el, vnode, oldProps, newProps) {
+            if (oldProps !== newProps) {
+                for (var key in newProps) {
+                    var prev = oldProps[key];
+                    var next = newProps[key];
+                    if (prev !== next) {
+                        hostPatchProp(el, key, prev, next);
+                    }
+                }
+            }
+            // 如果旧props有，新props没有，则删除
+            if (oldProps !== EMPTY_OBJ) {
+                for (var key in oldProps) {
+                    if (!(key in newProps)) {
+                        hostPatchProp(el, key, oldProps[key], null);
+                    }
+                }
+            }
+        };
+        // 元素操作函数 - 转发
+        var processElement = function (oldVNode, newVNode, container, anchor) {
+            if (anchor === void 0) { anchor = null; }
+            if (oldVNode === null) {
+                // 挂载
+                mountElement(newVNode, container, anchor);
+            }
+            else {
+                // TODO: 更新
+                patchElement(oldVNode, newVNode);
+            }
+        };
+        var patch = function (oldVNode, newVNode, container, anchor) {
+            if (anchor === void 0) { anchor = null; }
+            if (oldVNode === newVNode) {
+                return;
+            }
+            // 判断是否是相同节点,不相同时直接卸载旧元素
+            if (oldVNode && !isSameVNodeType(oldVNode, newVNode)) {
+                unmount(oldVNode);
+                oldVNode = null;
+            }
+            var type = newVNode.type, shapeFlag = newVNode.shapeFlag;
+            switch (type) {
+                case Text:
+                    break;
+                case Comment:
+                    break;
+                case Fragment:
+                    break;
+                default:
+                    if (shapeFlag & ShapeFlags.ELEMENT) {
+                        processElement(oldVNode, newVNode, container, anchor);
+                    }
+                    else if (shapeFlag & ShapeFlags.COMPONENT) ;
+            }
+        };
+        var unmount = function (vnode) {
+            hostRemove(vnode.el);
+        };
+        var render = function (vnode, container) {
+            if (vnode === null) {
+                // 卸载
+                if (container._vnode) {
+                    unmount(container._vnode);
+                }
+            }
+            else {
+                // 挂载 || 更新
+                patch(container._vnode || null, vnode, container);
+            }
+            container._vnode = vnode;
+        };
+        return {
+            render: render
+        };
+    }
+
+    var nodeOps = {
+        insert: function (child, parent, anchor) {
+            if (anchor === void 0) { anchor = null; }
+            parent.insertBefore(child, anchor);
+        },
+        remove: function (child) {
+            var parent = child.parentNode;
+            if (parent) {
+                parent.removeChild(child);
+            }
+        },
+        createElement: function (tag) {
+            return document.createElement(tag);
+        },
+        // createText(text: string) {
+        //   return document.createTextNode(text)
+        // },
+        setElementText: function (el, text) {
+            el.textContent = text;
+        }
+    };
+
+    function patchClass(el, value) {
+        if (value === null) {
+            el.removeAttribute('class');
+        }
+        else {
+            el.className = value;
+        }
+    }
+
+    function patchDOMProp(el, key, value) {
+        try {
+            el[key] = value;
+        }
+        catch (e) { }
+    }
+
+    function patchAttr(el, key, value) {
+        if (value == null) {
+            el.removeAttribute(key);
+        }
+        else {
+            el.setAttribute(key, value);
+        }
+    }
+
+    var patchProp = function (el, key, prevValue, nextValue) {
+        if (key === 'class') {
+            patchClass(el, nextValue);
+        }
+        else if (key === 'style') ;
+        else if (isOn(key)) ;
+        else if (shouldSetAsProp(el, key)) {
+            patchDOMProp(el, key, nextValue);
+        }
+        else {
+            patchAttr(el, key, nextValue);
+        }
+    };
+    // 判断是否应该通过DOM操作Property的方式设置值
+    function shouldSetAsProp(el, key) {
+        if (key === 'form') {
+            return false;
+        }
+        if (key === 'list' && el.tagName === 'INPUT') {
+            return false;
+        }
+        if (key === 'type' && el.tagName === 'TEXTAREA') {
+            return false;
+        }
+        return key in el;
+    }
+
+    var rendererOptions = extend({ patchProp: patchProp }, nodeOps);
+    var renderer;
+    function ensureRenderer() {
+        return renderer || (renderer = createRenderer(rendererOptions));
+    }
+    var render = function () {
+        var _a;
+        var args = [];
+        for (var _i = 0; _i < arguments.length; _i++) {
+            args[_i] = arguments[_i];
+        }
+        (_a = ensureRenderer()).render.apply(_a, __spreadArray([], __read(args), false));
+    };
+
     exports.Comment = Comment;
     exports.Fragment = Fragment;
     exports.Text = Text;
@@ -572,6 +813,7 @@ var Vue = (function (exports) {
     exports.queuePreFlushCb = queuePreFlushCb;
     exports.reactive = reactive;
     exports.ref = ref;
+    exports.render = render;
     exports.watch = watch;
 
     Object.defineProperty(exports, '__esModule', { value: true });

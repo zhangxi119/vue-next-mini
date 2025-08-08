@@ -40,3 +40,8 @@ export const EMPTY_ARR: any[] = []
  * 是否是字符串
  */
 export const isString = (val: unknown): val is string => typeof val === 'string'
+
+/**
+ * 是否是绑定事件
+ */
+export const isOn = (key: string) => /^on[^a-z]/.test(key)
