@@ -29,4 +29,4 @@ export const toReactive = <T extends unknown>(value: T): T => {
 }
 
 // 判断是否为响应式对象
-export const isReactive = (value: unknown): boolean => !!(value && value[ReactiveFlags.IS_REACTIVE])
+export const isReactive = (value: unknown): boolean => !!(value && (value as object)[ReactiveFlags.IS_REACTIVE])

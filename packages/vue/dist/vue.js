@@ -58,6 +58,35 @@ var Vue = (function (exports) {
         ShapeFlags[ShapeFlags["COMPONENT"] = 6] = "COMPONENT";
     })(ShapeFlags || (ShapeFlags = {}));
 
+    function normalizeClass(value) {
+        var res = '';
+        if (isString(value)) {
+            res = value;
+        }
+        else if (isArray(value)) {
+            for (var i = 0; i < value.length; i++) {
+                var normalized = normalizeClass(value[i]);
+                if (normalized) {
+                    res += normalized + ' ';
+                }
+            }
+        }
+        else if (isObject(value)) {
+            for (var name_1 in value) {
+                if (Object.prototype.hasOwnProperty.call(value, name_1)) {
+                    if (value[name_1]) {
+                        res += name_1 + ' ';
+                    }
+                }
+            }
+        }
+        return res.trim();
+    }
+    function normalizeStyle(value) {
+        var res = '';
+        return res.trim();
+    }
+
     /**
      * 判断是否为一个数组
      */
@@ -455,11 +484,24 @@ var Vue = (function (exports) {
         return value;
     }
 
+    var Fragment = Symbol('Fragment');
+    var Text = Symbol('Text');
+    var Comment = Symbol('Comment');
     function isVNode(value) {
         return value != null && value.__v_isVNode === true;
     }
+    // 创建虚拟节点
     function createVNode(type, props, children) {
-        var shapeFlag = isString(type) ? ShapeFlags.ELEMENT : 0;
+        if (props) {
+            var klass = props.class, style = props.style;
+            if (klass && !isString(klass)) {
+                props.class = normalizeClass(klass);
+            }
+            if (style && !isString(style)) {
+                props.style = normalizeStyle();
+            }
+        }
+        var shapeFlag = isString(type) ? ShapeFlags.ELEMENT : isObject(type) ? ShapeFlags.STATEFUL_COMPONENT : 0;
         return createBaseVNode(type, props, children, shapeFlag);
     }
     function createBaseVNode(type, props, children, shapeFlag) {
@@ -478,7 +520,9 @@ var Vue = (function (exports) {
         if (children == null) {
             children = null;
         }
-        else if (isArray(children)) ;
+        else if (isArray(children)) {
+            type = ShapeFlags.ARRAY_CHILDREN;
+        }
         else if (typeof children === 'object') ;
         else if (isFunction(children)) ;
         else {
@@ -486,6 +530,7 @@ var Vue = (function (exports) {
             type = ShapeFlags.TEXT_CHILDREN;
         }
         vnode.children = children;
+        // 将dom的类型和children的类型进行或运算，形成最终的类型，也就是说shapeFlag是dom的类型和children的类型的并集
         vnode.shapeFlag |= type;
     }
 
@@ -518,6 +563,9 @@ var Vue = (function (exports) {
         }
     }
 
+    exports.Comment = Comment;
+    exports.Fragment = Fragment;
+    exports.Text = Text;
     exports.computed = computed;
     exports.effect = effect;
     exports.h = h;

@@ -1,4 +1,8 @@
-import { isArray, isFunction, isObject, isString, ShapeFlags } from '@vue/shared'
+import { isArray, isFunction, isObject, isString, ShapeFlags, normalizeClass, normalizeStyle } from '@vue/shared'
+
+export const Fragment = Symbol('Fragment')
+export const Text = Symbol('Text')
+export const Comment = Symbol('Comment')
 
 export interface VNode {
   __v_isVNode: true
@@ -12,8 +16,19 @@ export function isVNode(value: any): value is VNode {
   return value != null && value.__v_isVNode === true
 }
 
+// 创建虚拟节点
 export function createVNode(type, props, children): VNode {
-  const shapeFlag = isString(type) ? ShapeFlags.ELEMENT : 0
+  if (props) {
+    let { class: klass, style } = props
+    if (klass && !isString(klass)) {
+      props.class = normalizeClass(klass)
+    }
+    if (style && !isString(style)) {
+      props.style = normalizeStyle(style)
+    }
+  }
+
+  const shapeFlag = isString(type) ? ShapeFlags.ELEMENT : isObject(type) ? ShapeFlags.STATEFUL_COMPONENT : 0
 
   return createBaseVNode(type, props, children, shapeFlag)
 }
@@ -37,16 +52,17 @@ export function normalizeChildren(vnode: VNode, children: unknown) {
   if (children == null) {
     children = null
   } else if (isArray(children)) {
-    // vnode.shapeFlag |= ShapeFlags.ARRAY_CHILDREN
+    type = ShapeFlags.ARRAY_CHILDREN
   } else if (typeof children === 'object') {
-    // vnode.shapeFlag |= ShapeFlags.SLOT_CHILDREN
+    // type= ShapeFlags.SLOT_CHILDREN
   } else if (isFunction(children)) {
-    // vnode.shapeFlag |= ShapeFlags.COMPONENT
+    // type = ShapeFlags.COMPONENT
   } else {
     children = String(children)
     type = ShapeFlags.TEXT_CHILDREN
   }
 
   vnode.children = children
+  // 将dom的类型和children的类型进行或运算，形成最终的类型，也就是说shapeFlag是dom的类型和children的类型的并集
   vnode.shapeFlag |= type
 }
