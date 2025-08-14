@@ -23,9 +23,3 @@ export function normalizeClass(value: unknown): string {
 
   return res.trim()
 }
-
-export function normalizeStyle(value: unknown): string {
-  let res = ''
-
-  return res.trim()
-}

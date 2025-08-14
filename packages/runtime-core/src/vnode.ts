@@ -1,4 +1,4 @@
-import { isArray, isFunction, isObject, isString, ShapeFlags, normalizeClass, normalizeStyle } from '@vue/shared'
+import { isArray, isFunction, isObject, isString, ShapeFlags, normalizeClass } from '@vue/shared'
 
 export const Fragment = Symbol('Fragment')
 export const Text = Symbol('Text')
@@ -23,9 +23,6 @@ export function createVNode(type, props, children): VNode {
     let { class: klass, style } = props
     if (klass && !isString(klass)) {
       props.class = normalizeClass(klass)
-    }
-    if (style && !isString(style)) {
-      props.style = normalizeStyle(style)
     }
   }
 
