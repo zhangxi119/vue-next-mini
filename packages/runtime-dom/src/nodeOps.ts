@@ -11,10 +11,19 @@ export const nodeOps = {
   createElement(tag: string) {
     return document.createElement(tag)
   },
-  // createText(text: string) {
-  //   return document.createTextNode(text)
-  // },
   setElementText(el: Element, text: string) {
     el.textContent = text
+  },
+  createText(text: string) {
+    return document.createTextNode(text)
+  },
+  setText(node: Text, text: string) {
+    node.nodeValue = text
+  },
+  createComment(text: string) {
+    return document.createComment(text)
+  },
+  setComment(node: Comment, text: string) {
+    node.nodeValue = text
   }
 }

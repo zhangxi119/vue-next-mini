@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <script src="../../dist/vue.js"></script>
+  </head>
+  <body>
+    <div id="app"></div>
+  </body>
+
+  <script>
+    const { h, render, Text } = Vue
+
+    const vnode = h(Text, '这是一个Text')
+
+    render(vnode, document.querySelector('#app'))
+
+    setTimeout(() => {
+      render(h(Text, '这是一个Text2'), document.querySelector('#app'))
+    }, 1000)
+  </script>
+</html>
