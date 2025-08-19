@@ -1,6 +1,9 @@
 import { EMPTY_OBJ, isString, ShapeFlags } from '@vue/shared'
 import { Text, Comment, Fragment, isSameVNodeType } from './vnode'
-import { normalizeVNode } from './componentRenderUtils'
+import { normalizeVNode, renderComponentRoot } from './componentRenderUtils'
+import { createComponentInstance, setupComponent } from './component'
+import { ReactiveEffect } from '@vue/reactivity'
+import { queuePreFlushCb } from './scheduler'
 
 export interface RendererOptions {
   // 为指定的 element 的props打补丁
@@ -69,6 +72,36 @@ function baseCreateRenderer(options: RendererOptions): any {
     patchChildren(oldVNode, newVNode, el, null)
     // 更新props
     patchProps(el, newVNode, oldProps, newProps)
+  }
+
+  // 挂载组件
+  const mountComponent = (initialVNode: any, container: any, anchor: any) => {
+    const instance = createComponentInstance(initialVNode)
+    setupComponent(instance)
+    setupRenderEffect(instance, initialVNode, container, anchor)
+  }
+
+  const setupRenderEffect = (instance, initialVNode, container, anchor) => {
+    const componentUpdateFn = () => {
+      if (!instance.isMounted) {
+        // TODO: 挂载
+        const subTree = (instance.subTree = renderComponentRoot(instance))
+        patch(null, subTree, container, anchor)
+        initialVNode.el = subTree.el
+        instance.isMounted = true
+      } else {
+        // TODO: 更新
+      }
+    }
+
+    // 创建队列任务副作用函数
+    const effect = (instance.effect = new ReactiveEffect(componentUpdateFn, () => queuePreFlushCb(update)))
+
+    // 创建更新函数
+    const update = (instance.update = () => effect.run())
+
+    // 执行更新函数
+    update()
   }
 
   // 子节点打补丁
@@ -191,6 +224,17 @@ function baseCreateRenderer(options: RendererOptions): any {
     }
   }
 
+  // 组件操作函数 - 转发
+  const processComponent = (oldVNode: any, newVNode: any, container: any, anchor: any) => {
+    if (oldVNode === null) {
+      // 挂载
+      mountComponent(newVNode, container, anchor)
+    } else {
+      // 更新
+      // patchComponent(oldVNode, newVNode)
+    }
+  }
+
   const patch = (oldVNode: any, newVNode: any, container: any, anchor = null) => {
     if (oldVNode === newVNode) {
       return
@@ -217,8 +261,7 @@ function baseCreateRenderer(options: RendererOptions): any {
         if (shapeFlag & ShapeFlags.ELEMENT) {
           processElement(oldVNode, newVNode, container, anchor)
         } else if (shapeFlag & ShapeFlags.COMPONENT) {
-          // TODO: 组件
-          // processComponent(oldVNode, newVNode, container, anchor)
+          processComponent(oldVNode, newVNode, container, anchor)
         }
     }
   }
