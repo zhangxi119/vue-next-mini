@@ -83,14 +83,37 @@ function baseCreateRenderer(options: RendererOptions): any {
 
   const setupRenderEffect = (instance, initialVNode, container, anchor) => {
     const componentUpdateFn = () => {
+      // 挂载
       if (!instance.isMounted) {
-        // TODO: 挂载
+        const { bm, m } = instance
+        // 触发beforeMount钩子
+        if (bm) {
+          bm()
+        }
+        // 渲染组件
         const subTree = (instance.subTree = renderComponentRoot(instance))
         patch(null, subTree, container, anchor)
         initialVNode.el = subTree.el
         instance.isMounted = true
+        // 触发mounted钩子
+        if (m) {
+          m()
+        }
       } else {
-        // TODO: 更新
+        // 更新
+        let { next, vnode } = instance
+        if (!next) {
+          next = vnode
+        }
+
+        const nextTree = renderComponentRoot(instance)
+
+        const prevTree = instance.subTree
+        instance.subTree = nextTree
+
+        // 渲染
+        patch(prevTree, nextTree, container, anchor)
+        next.el = nextTree.el
       }
     }
 
