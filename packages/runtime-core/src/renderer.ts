@@ -49,7 +49,8 @@ function baseCreateRenderer(options: RendererOptions): any {
     if (shapeFlag & ShapeFlags.TEXT_CHILDREN) {
       hostSetElementText(el, vnode.children)
     } else if (shapeFlag & ShapeFlags.ARRAY_CHILDREN) {
-      // TODO: 挂载array children
+      // 挂载array children
+      mountChildren(vnode.children, el, anchor)
     }
     // 3.设置props
     if (props) {
@@ -151,6 +152,7 @@ function baseCreateRenderer(options: RendererOptions): any {
         // 新节点是数组ARRAY_CHILDREN
         if (shapeFlag & ShapeFlags.ARRAY_CHILDREN) {
           // TODO: diff运算
+          pactKeyedChildren(c1, c2, container, anchor)
         } else {
           // 新节点是文本TEXT_CHILDREN
           // TODO: 卸载旧子节点
@@ -168,7 +170,42 @@ function baseCreateRenderer(options: RendererOptions): any {
     }
   }
 
-  // 挂载子节点 - Fragment
+  // 对比子节点差异并选择不同的更新方式进行更新 - diff
+  const pactKeyedChildren = (oldChildren, newChildren, container, parentAnchor) => {
+    let i = 0
+    const newChildrenLength = newChildren.length
+    let oldChildrenEnd = oldChildren.length - 1
+    let newChildrenEnd = newChildren.length - 1
+
+    // 1. 自前向后
+    while (i <= oldChildrenEnd && i <= newChildrenEnd) {
+      const oldVNode = oldChildren[i]
+      const newVNode = normalizeVNode(newChildren[i])
+      if (isSameVNodeType(oldVNode, newVNode)) {
+        patch(oldVNode, newVNode, container, null)
+      } else {
+        break
+      }
+      i++
+    }
+
+    // 2. 自后向前
+    while (i <= oldChildrenEnd && i <= newChildrenEnd) {
+      const oldVNode = oldChildren[oldChildrenEnd]
+      const newVNode = normalizeVNode(newChildren[newChildrenEnd])
+      if (isSameVNodeType(oldVNode, newVNode)) {
+        patch(oldVNode, newVNode, container, null)
+      } else {
+        break
+      }
+      oldChildrenEnd--
+      newChildrenEnd--
+    }
+
+    // 3. 新节点多于旧节点
+  }
+
+  // 挂载子节点
   const mountChildren = (children: any, container: any, anchor: any) => {
     if (isString(children)) {
       children = children.split('')
