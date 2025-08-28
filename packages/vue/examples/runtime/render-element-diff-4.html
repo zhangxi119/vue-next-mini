@@ -13,18 +13,18 @@
   <script>
     const { h, render, reactive } = Vue
 
-    const vnode = h('ul', [h('li', { key: 1 }, 'a'), h('li', { key: 2 }, 'b'), h('li', { key: 3 }, 'c')])
+    const vnode = h('ul', [
+      h('li', { key: 1 }, 'a'),
+      h('li', { key: 2 }, 'b'),
+      h('li', { key: 3 }, 'c'),
+      h('li', { key: 4 }, 'd')
+    ])
     console.log('vnode', vnode)
     render(vnode, document.querySelector('#app'))
 
     setTimeout(() => {
       render(
-        h('ul', [
-          h('li', { key: 4 }, 'd'),
-          h('li', { key: 1 }, 'a'),
-          h('li', { key: 2 }, 'b'),
-          h('li', { key: 3 }, 'c')
-        ]),
+        h('ul', [h('li', { key: 1 }, 'a'), h('li', { key: 2 }, 'b'), h('li', { key: 3 }, 'c')]),
         document.querySelector('#app')
       )
     }, 3000)
