@@ -1,6 +1,6 @@
 import { isArray, isString } from '@vue/shared'
 import { NodeTypes } from './ast'
-import { helperNameMap } from './runtimeHelpers'
+import { helperNameMap, TO_DISPLAY_STRING } from './runtimeHelpers'
 import { getVNodeHelper } from './utils'
 
 const aliasHelper = (s: symbol) => `${helperNameMap[s]}: _${helperNameMap[s]}`
@@ -42,8 +42,10 @@ function createCodegenContext(ast) {
  * `
  * const _Vue = Vue
  * return function render(_ctx,  _cache) {
- *  const { createElementVNode: _createElementVNode } = _Vue
- *  return _createElementVNode('div', [], ["hello word"])
+ *  with(_ctx) {
+ *    const { createElementVNode: _createElementVNode, toDisplayString: _toDisplayString } = _Vue
+ *    return _createElementVNode('div', [], ["hello word"])
+ *  }
  * }
  * `
  * @param ast
@@ -62,6 +64,9 @@ export function generate(ast) {
   push(`function ${functionName}(${signature}) {`)
   indent()
 
+  push(`with (_ctx) {`)
+  indent()
+
   const hasHelpers = ast.helpers.length > 0
   if (hasHelpers) {
     push(`const { ${ast.helpers.map(aliasHelper).join(', ')} } = _Vue`)
@@ -73,10 +78,13 @@ export function generate(ast) {
     } else {
       push('null')
     }
-
-    deindent()
-    push('}')
   }
+
+  deindent()
+  push('}')
+
+  deindent()
+  push('}')
 
   return {
     ast,
@@ -94,17 +102,58 @@ function genFunctionPreamble(context) {
 
 function genNode(node, context) {
   switch (node.type) {
+    // 虚拟节点调用
     case NodeTypes.VNODE_CALL:
       genVNodeCall(node, context)
       break
+    // 文本节点
     case NodeTypes.TEXT:
       genText(node, context)
+      break
+    // 简单表达式
+    case NodeTypes.SIMPLE_EXPRESSION:
+      genExpression(node, context)
+      break
+    // 赋值表达式操作
+    case NodeTypes.INTERPOLATION:
+      genInterpolation(node, context)
+      break
+    // 复合表达式
+    case NodeTypes.COMPOUND_EXPRESSION:
+      genCompoundExpression(node, context)
       break
   }
 }
 
 function genText(node, context) {
   context.push(JSON.stringify(node.content))
+}
+
+// 简单表达式
+function genExpression(node, context) {
+  const { content, isStatic } = node
+  context.push(isStatic ? JSON.stringify(content) : content)
+}
+
+// 赋值表达式操作
+function genInterpolation(node, context) {
+  const { push, helper } = context
+  push(`${helper(TO_DISPLAY_STRING)}(`)
+  genNode(node.content, context)
+  push(')')
+}
+
+// 复合表达式
+function genCompoundExpression(node, context) {
+  const { push } = context
+  for (let i = 0; i < node.children.length; i++) {
+    const child = node.children[i]
+    if (isString(child)) {
+      push(child)
+    } else {
+      genNode(child, context)
+    }
+  }
 }
 
 // 核心代码生成

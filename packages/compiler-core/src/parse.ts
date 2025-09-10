@@ -40,8 +40,9 @@ function parseChildren(context: ParserContext, ancestors) {
 
     let node
 
+    // 处理表达式
     if (startsWith(s, '{{')) {
-      // TODO
+      node = parseInterpolation(context)
     } else if (s[0] === '<') {
       if (/[a-z]/i.test(s[1])) {
         node = parseElement(context, ancestors)
@@ -56,6 +57,29 @@ function parseChildren(context: ParserContext, ancestors) {
   }
 
   return nodes
+}
+
+// 解析表达式
+function parseInterpolation(context: ParserContext) {
+  // {{ XX }}
+  const [open, close] = ['{{', '}}']
+
+  advanceBy(context, open.length)
+
+  const closeIndex = context.source.indexOf(close, open.length)
+  const preTrimContext = parseTextData(context, closeIndex)
+  const content = preTrimContext.trim()
+
+  advanceBy(context, close.length)
+
+  return {
+    type: NodeTypes.INTERPOLATION,
+    content: {
+      type: NodeTypes.SIMPLE_EXPRESSION,
+      isStatic: false,
+      content
+    }
+  }
 }
 
 // 解析Element元素

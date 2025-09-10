@@ -8,6 +8,8 @@ import { generate } from './codegen'
 export function baseCompile(template: string, options = {}) {
   const ast = baseParse(template)
 
+  console.log(JSON.stringify(ast))
+
   transform(
     ast,
     extend(options, {

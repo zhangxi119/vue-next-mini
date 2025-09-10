@@ -1,5 +1,6 @@
 export * from './shapeFlags'
 export * from './normalizeProp'
+export * from './toDisplayString'
 
 /**
  * 判断是否为一个数组
